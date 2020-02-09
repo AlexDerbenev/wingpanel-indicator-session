@@ -32,6 +32,8 @@ public class Session.Indicator : Wingpanel.Indicator {
     private Gtk.ModelButton user_settings;
     private Gtk.ModelButton lock_screen;
     private Gtk.ModelButton suspend;
+    private Gtk.ModelButton hibernate;
+    private Gtk.ModelButton hybrid_sleep;
     private Gtk.ModelButton shutdown;
 
     private Session.Services.UserManager manager;
@@ -104,6 +106,12 @@ public class Session.Indicator : Wingpanel.Indicator {
             suspend = new Gtk.ModelButton ();
             suspend.text = _("Suspend");
 
+            hibernate = new Gtk.ModelButton ();
+            hibernate.text = _("Hibernate");
+
+            hybrid_sleep = new Gtk.ModelButton ();
+            hybrid_sleep.text = _("Hybrid Sleep");
+
             if (server_type == Wingpanel.IndicatorManager.ServerType.SESSION) {
                 users_separator = new Wingpanel.Widgets.Separator ();
                 manager = new Session.Services.UserManager (users_separator);
@@ -129,6 +137,26 @@ public class Session.Indicator : Wingpanel.Indicator {
             }
 
             main_grid.add (suspend);
+            
+            try {
+                if(suspend_interface.can_hibernate () == "yes"){
+                    main_grid.add (hibernate);
+                }
+            } catch (GLib.Error e) {
+                stderr.printf ("%s\n", e.message);
+                suspend.set_sensitive (false);
+            }
+            
+            try {
+                if(suspend_interface.can_hybrid_sleep () == "yes"){
+                    main_grid.add (hybrid_sleep);
+                }
+            } catch (GLib.Error e) {
+                stderr.printf ("%s\n", e.message);
+                suspend.set_sensitive (false);
+            }
+            
+            
             main_grid.add (shutdown);
 
             if (keybinding_settings != null) {
@@ -199,6 +227,26 @@ public class Session.Indicator : Wingpanel.Indicator {
 
             try {
                 suspend_interface.suspend (true);
+            } catch (GLib.Error e) {
+                stderr.printf ("%s\n", e.message);
+            }
+        });
+
+        hibernate.clicked.connect (() => {
+            close ();
+
+            try {
+                suspend_interface.hibernate (true);
+            } catch (GLib.Error e) {
+                stderr.printf ("%s\n", e.message);
+            }
+        });
+
+        hybrid_sleep.clicked.connect (() => {
+            close ();
+
+            try {
+                suspend_interface.hybrid_sleep (true);
             } catch (GLib.Error e) {
                 stderr.printf ("%s\n", e.message);
             }
