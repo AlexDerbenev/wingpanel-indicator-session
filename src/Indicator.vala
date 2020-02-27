@@ -140,20 +140,19 @@ public class Session.Indicator : Wingpanel.Indicator {
                     main_grid.add (hibernate);
                 }
             } catch (GLib.Error e) {
-                stderr.printf ("%s\n", e.message);
+                warning ("CanHibernate Error: %s", e.message);
                 hibernate.set_sensitive (false);
             }
-            
+
             try {
                 if (suspend_interface.can_hybrid_sleep () == "yes") {
                     main_grid.add (hybrid_sleep);
                 }
             } catch (GLib.Error e) {
-                stderr.printf ("%s\n", e.message);
+                warning ("CanHybridSleep Error: %s", e.message);
                 hybrid_sleep.set_sensitive (false);
             }
-            
-            
+
             main_grid.add (shutdown);
 
             if (keybinding_settings != null) {
