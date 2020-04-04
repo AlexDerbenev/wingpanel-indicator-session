@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2011-2017 elementary LLC. (http://launchpad.net/wingpanel)
+ * Copyright (c) 2011-2020 elementary, Inc. (https://elementary.io)
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public
@@ -35,24 +35,22 @@ public enum UserState {
 }
 
 public class Session.Services.UserManager : Object {
+    public signal void close ();
+
+    public Session.Widgets.UserListBox user_grid { get; private set; }
+    public Wingpanel.Widgets.Separator users_separator { get; construct; }
+
+    private const uint GUEST_USER_UID = 999;
     private const uint NOBODY_USER_UID = 65534;
     private const uint RESERVED_UID_RANGE_END = 1000;
-
-    public signal void close ();
 
     private const string DM_DBUS_ID = "org.freedesktop.DisplayManager";
     private const string LOGIN_IFACE = "org.freedesktop.login1";
     private const string LOGIN_PATH = "/org/freedesktop/login1";
 
-    private signal void delete_user (ObjectPath user_path);
     private Act.UserManager manager;
-    private List<Widgets.Userbox> userbox_list;
+    private Gee.HashMap<uint, Widgets.Userbox>? user_boxes;
     private SeatInterface? dm_proxy = null;
-    private Wingpanel.Widgets.Separator users_separator;
-
-    public Session.Widgets.UserListBox user_grid;
-
-    public bool has_guest { public get; private set; default = false; }
 
     private static SystemInterface? login_proxy;
 
@@ -117,15 +115,15 @@ public class Session.Services.UserManager : Object {
     }
 
     public UserManager (Wingpanel.Widgets.Separator users_separator) {
-        this.users_separator = users_separator;
-        this.users_separator.set_no_show_all (true);
-        this.users_separator.visible = false;
-
-        init ();
+        Object (users_separator: users_separator);
     }
 
-    private void init () {
-        userbox_list = new List<Widgets.Userbox> ();
+    construct {
+        user_boxes = new Gee.HashMap<uint, Widgets.Userbox> ();
+
+        users_separator.no_show_all = true;
+        users_separator.visible = false;
+
         user_grid = new Session.Widgets.UserListBox ();
         user_grid.close.connect (() => close ());
 
@@ -145,7 +143,9 @@ public class Session.Services.UserManager : Object {
         if (seat_path != null) {
             try {
                 dm_proxy = Bus.get_proxy_sync (BusType.SYSTEM, DM_DBUS_ID, seat_path, DBusProxyFlags.NONE);
-                has_guest = dm_proxy.has_guest_account;
+                if (dm_proxy.has_guest_account) {
+                    add_guest ();
+                }
             } catch (IOError e) {
                 critical ("UserManager error: %s", e.message);
             }
@@ -165,43 +165,29 @@ public class Session.Services.UserManager : Object {
     private void add_user (Act.User? user) {
         // Don't add any of the system reserved users
         var uid = user.get_uid ();
-        if (uid < RESERVED_UID_RANGE_END || uid == NOBODY_USER_UID) {
+        if (uid < RESERVED_UID_RANGE_END || uid == NOBODY_USER_UID || user_boxes.has_key (uid)) {
             return;
         }
 
-        var userbox = new Session.Widgets.Userbox (user);
-        userbox_list.append (userbox);
-        user_grid.add (userbox);
+        user_boxes[uid] = new Session.Widgets.Userbox (user);
+        user_grid.add (user_boxes[uid]);
+
         users_separator.visible = true;
     }
 
-    private Widgets.Userbox? get_userbox_from_user (Act.User user) {
-        foreach (Widgets.Userbox userbox in userbox_list) {
-            var _user = userbox.user;
-            if (_user == null) {
-                continue;
-            }
-
-            if (_user.get_user_name () == user.get_user_name ()) {
-                return userbox;
-            }
-        }
-
-        return null;
-    }
-
     private void remove_user (Act.User user) {
-        var userbox = get_userbox_from_user (user);
+        var uid = user.get_uid ();
+        var userbox = user_boxes[uid];
         if (userbox == null) {
             return;
         }
 
-        userbox_list.remove (userbox);
+        user_boxes.unset (uid);
         user_grid.remove (userbox);
     }
 
     private void update_user (Act.User user) {
-        var userbox = get_userbox_from_user (user);
+        var userbox = user_boxes[user.get_uid ()];
         if (userbox == null) {
             return;
         }
@@ -210,17 +196,20 @@ public class Session.Services.UserManager : Object {
     }
 
     public void update_all () {
-        foreach (var userbox in userbox_list) {
+        foreach (var userbox in user_boxes) {
             userbox.update_state ();
         }
     }
 
-    public void add_guest (bool logged_in) {
-        var userbox = new Session.Widgets.Userbox.from_data (_("Guest"), logged_in, true);
-        userbox_list.append (userbox);
-        userbox.visible = true;
+    private void add_guest () {
+        if (user_boxes[GUEST_USER_UID] != null) {
+            return;
+        }
 
-        user_grid.add_guest (userbox);
+        user_boxes[GUEST_USER_UID] = new Session.Widgets.Userbox.guest ();
+        user_boxes[GUEST_USER_UID].show ();
+
+        user_grid.add (user_boxes[GUEST_USER_UID]);
 
         users_separator.visible = true;
     }
