@@ -23,7 +23,6 @@ public class Session.Indicator : Wingpanel.Indicator {
 
     private SystemInterface suspend_interface;
     private LockInterface lock_interface;
-    private SeatInterface seat_interface;
 
     private Wingpanel.IndicatorManager.ServerType server_type;
     private Wingpanel.Widgets.OverlayIcon indicator_icon;
@@ -151,8 +150,16 @@ public class Session.Indicator : Wingpanel.Indicator {
             main_grid.add (shutdown);
 
             if (keybinding_settings != null) {
-                keybinding_settings.bind ("logout", log_out_grid, "accel-string", GLib.SettingsBindFlags.GET);
-                keybinding_settings.bind ("screensaver", lock_screen_grid, "accel-string", GLib.SettingsBindFlags.GET);
+                log_out_grid.accel_string = keybinding_settings.get_strv ("logout")[0];
+                lock_screen_grid.accel_string = keybinding_settings.get_strv ("screensaver")[0];
+
+                keybinding_settings.changed["logout"].connect (() => {
+                    log_out_grid.accel_string = keybinding_settings.get_strv ("logout")[0];
+                });
+
+                keybinding_settings.changed["screensaver"].connect (() => {
+                    lock_screen_grid.accel_string = keybinding_settings.get_strv ("screensaver")[0];
+                });
             }
 
             manager.close.connect (() => close ());
@@ -231,13 +238,6 @@ public class Session.Indicator : Wingpanel.Indicator {
                 lock_interface = Bus.get_proxy_sync (BusType.SESSION, "org.freedesktop.ScreenSaver", "/org/freedesktop/ScreenSaver");
             } catch (IOError e) {
                 warning ("Unable to connect to lock interface: %s", e.message);
-                lock_screen.set_sensitive (false);
-            }
-
-            try {
-                seat_interface = Bus.get_proxy_sync (BusType.SESSION, "org.freedesktop.DisplayManager", "/org/freedesktop/DisplayManager/Seat0");
-            } catch (IOError e) {
-                warning ("Unable to connect to seat interface: %s", e.message);
                 lock_screen.set_sensitive (false);
             }
         }
